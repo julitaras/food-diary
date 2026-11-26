@@ -64,8 +64,8 @@ details.opt .row{margin-top:10px}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 
-#lb{position:fixed;inset:0;background:#000e;z-index:50;display:none;touch-action:none;overflow:hidden}
-#lb.on{display:block}
+#lb{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;border-radius:0;margin:0;background:#000;touch-action:none;overflow:hidden;color:#fff}
+#lb[open]{display:block}
 #lb img{position:absolute;left:50%;top:50%;max-width:100vw;max-height:100vh;transform:translate(-50%,-50%);user-select:none;-webkit-user-drag:none;will-change:transform;cursor:default}
 #lb .x{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;z-index:2;background:#000a;color:#fff;border-color:#fff4;font-size:20px;padding:6px 14px}
 #lb .h{position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#fffa;font-size:13px;pointer-events:none}
@@ -78,11 +78,27 @@ details.opt .row{margin-top:10px}
 .remrow input[type=time]{width:auto}
 .remrow input[type=text]{flex:1;min-width:0}
 .remrow input[type=checkbox]{width:auto}
+
+#cr{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;border-radius:0;margin:0;background:#000;flex-direction:column;color:#fff}
+#cr[open]{display:flex}
+#cr .stage{flex:1;position:relative;display:grid;place-items:center;overflow:hidden;touch-action:none;min-height:0}
+#crWrap{position:relative;line-height:0;user-select:none;-webkit-user-select:none}
+#crImg{display:block;max-width:100vw;max-height:calc(100vh - 130px);max-height:calc(100dvh - 130px);-webkit-user-drag:none}
+#crBox{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px #000a;cursor:move;touch-action:none}
+#crBox::before,#crBox::after{content:"";position:absolute;pointer-events:none;background:#fff5}
+#crBox::before{left:33.3%;right:33.3%;top:0;bottom:0;border-left:1px solid #fff5;border-right:1px solid #fff5;background:none}
+#crBox::after{top:33.3%;bottom:33.3%;left:0;right:0;border-top:1px solid #fff5;border-bottom:1px solid #fff5;background:none}
+.hd{position:absolute;width:34px;height:34px;margin:-17px;border-radius:50%;background:#fff;border:3px solid var(--acc);touch-action:none;z-index:2}
+.hd[data-c=nw]{left:0;top:0}.hd[data-c=ne]{left:100%;top:0}.hd[data-c=sw]{left:0;top:100%}.hd[data-c=se]{left:100%;top:100%}
+#cr .tb{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#111}
+#cr .tb button{background:#222;color:#fff;border-color:#444}
+#cr .tb button.on{background:var(--acc);border-color:var(--acc)}
+.photo .pb button{background:var(--card)}
 /* ---------- impresión / PDF ---------- */
 #print{display:none}
 @media print{
   body{background:#fff;color:#000;padding:0}
-  header,main,.fab,dialog,#lb,#toast{display:none!important}
+  header,main,.fab,dialog,#lb,#toast,#cr{display:none!important}
   #print{display:block;font-size:12pt}
   #print h1{font-size:18pt;margin:0 0 2pt}
   #print .sub{color:#555;margin-bottom:12pt}
@@ -196,7 +212,11 @@ details.opt .row{margin-top:10px}
   <div class="foot"><button type="button" id="dClose">Cerrar</button></div>
 </div></dialog>
 
-<div id="lb"><button class="x" id="lbX">✕</button><img id="lbImg" alt=""><div class="h">Pellizcá o usá la rueda para hacer zoom · doble toque para acercar</div></div>
+<dialog id="cr"><div class="stage"><div id="crWrap"><img id="crImg" alt=""><div id="crBox"><i class="hd" data-c="nw"></i><i class="hd" data-c="ne"></i><i class="hd" data-c="sw"></i><i class="hd" data-c="se"></i></div></div></div>
+  <div class="tb" id="crTb"><button data-r="0" class="on">Libre</button><button data-r="1">1:1</button><button data-r="1.3333">4:3</button><button data-r="0.75">3:4</button><button data-r="1.7778">16:9</button>
+  <button id="crCancel">Cancelar</button><button id="crOk" class="pri">Listo</button></div></dialog>
+
+<dialog id="lb"><button class="x" id="lbX">✕</button><img id="lbImg" alt=""><div class="h">Pellizcá o usá la rueda para hacer zoom · doble toque para acercar</div></dialog>
 <div id="toast"><span id="toastTxt"></span><button id="toastGo">Anotar</button><button id="toastX">✕</button></div>
 
 <dialog id="dlgR"><div class="form">
@@ -294,9 +314,9 @@ function suggestType(t){
 }
 function drawPhoto(){
   $('photoBox').innerHTML = photoData
-    ? `<img src="${photoData}" alt=""><div class="pb" style="position:absolute;right:0;bottom:0"><button type="button" id="pRm">Quitar foto</button></div>`
+    ? `<img src="${photoData}" alt=""><div class="pb" style="position:absolute;right:0;bottom:0"><button type="button" id="pCrop">✂️ Recortar</button><button type="button" id="pRm">Quitar foto</button></div>`
     : `<div class="pb"><button type="button" id="pCam">📷 Sacar foto</button><button type="button" id="pGal">🖼️ Elegir de galería</button></div>`;
-  if(photoData) $('pRm').onclick = () => { photoData=null; drawPhoto(); };
+  if(photoData){ $('pRm').onclick = () => { photoData=null; drawPhoto(); }; $('pCrop').onclick = openCrop; }
   else { $('pCam').onclick=()=>$('fileCam').click(); $('pGal').onclick=()=>$('fileGal').click(); }
 }
 function openForm(m){
@@ -467,15 +487,65 @@ $('fImp').onchange = async e => {
   }catch{ alert('Archivo no válido.'); }
 };
 
+/* ---------- Recorte de fotos ---------- */
+(()=>{
+  const cr=$('cr'), img=$('crImg'), box=$('crBox'), wrap=$('crWrap');
+  let W=0,H=0,R=0, b={x:0,y:0,w:0,h:0}, drag=null;
+  const MIN=40;
+  const paint=()=>{ box.style.left=b.x+'px'; box.style.top=b.y+'px'; box.style.width=b.w+'px'; box.style.height=b.h+'px'; };
+  const clampBox=()=>{ b.w=Math.min(Math.max(b.w,MIN),W); b.h=Math.min(Math.max(b.h,MIN),H); b.x=Math.min(Math.max(b.x,0),W-b.w); b.y=Math.min(Math.max(b.y,0),H-b.h); };
+  window.openCrop=()=>{
+    if(!photoData) return;
+    R=0; document.querySelectorAll('#crTb [data-r]').forEach(x=>x.classList.toggle('on',x.dataset.r==='0'));
+    img.onload=()=>{ W=img.clientWidth; H=img.clientHeight; b={x:0,y:0,w:W,h:H}; paint(); };
+    cr.showModal(); img.src=photoData;
+  };
+  const close=()=>{ if(cr.open) cr.close(); img.removeAttribute('src'); drag=null; };
+  $('crCancel').onclick=close;
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&cr.open){e.preventDefault();e.stopPropagation();close();} },true);
+  $('crTb').addEventListener('click',e=>{
+    const r=e.target.dataset.r; if(r==null) return;
+    R=+r; document.querySelectorAll('#crTb [data-r]').forEach(x=>x.classList.toggle('on',x===e.target));
+    if(R){ const cx=b.x+b.w/2, cy=b.y+b.h/2; if(b.w/b.h>R) b.w=b.h*R; else b.h=b.w/R;
+      if(b.w>W){b.w=W;b.h=b.w/R;} if(b.h>H){b.h=H;b.w=b.h*R;}
+      b.x=cx-b.w/2; b.y=cy-b.h/2; clampBox(); paint(); }
+  });
+  box.addEventListener('pointerdown',e=>{
+    e.preventDefault(); box.setPointerCapture(e.pointerId);
+    const c=e.target.dataset.c, rc=wrap.getBoundingClientRect();
+    drag={c, sx:e.clientX, sy:e.clientY, b:{...b}, rc,
+      ox:c==='nw'||c==='sw'?b.x+b.w:b.x, oy:c==='nw'||c==='ne'?b.y+b.h:b.y};
+  });
+  box.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    if(!drag.c){ b.x=drag.b.x+e.clientX-drag.sx; b.y=drag.b.y+e.clientY-drag.sy; clampBox(); paint(); return; }
+    const px=Math.min(Math.max(e.clientX-drag.rc.left,0),W), py=Math.min(Math.max(e.clientY-drag.rc.top,0),H);
+    const dx=px<drag.ox?-1:1, dy=py<drag.oy?-1:1;
+    const maxW=dx<0?drag.ox:W-drag.ox, maxH=dy<0?drag.oy:H-drag.oy;
+    let w=Math.abs(px-drag.ox), h=Math.abs(py-drag.oy);
+    if(R){ w=Math.min(Math.max(w,h*R),maxW,maxH*R); h=w/R; } else { w=Math.min(w,maxW); h=Math.min(h,maxH); }
+    w=Math.max(w,MIN); h=Math.max(h,R?MIN/R:MIN);
+    b={x:dx<0?drag.ox-w:drag.ox, y:dy<0?drag.oy-h:drag.oy, w, h}; paint();
+  });
+  const end=()=>{ drag=null; };
+  box.addEventListener('pointerup',end); box.addEventListener('pointercancel',end);
+  $('crOk').onclick=()=>{
+    const k=img.naturalWidth/W, c=document.createElement('canvas');
+    c.width=Math.round(b.w*k); c.height=Math.round(b.h*k);
+    c.getContext('2d').drawImage(img,b.x*k,b.y*k,b.w*k,b.h*k,0,0,c.width,c.height);
+    photoData=c.toDataURL('image/jpeg',.85); close(); drawPhoto();
+  };
+})();
+
 /* ---------- Zoom de imágenes ---------- */
 (()=>{
   const lb=$('lb'), im=$('lbImg'); let sc=1,tx=0,ty=0,moved=false; const pts=new Map(); let d0=0,s0=1,last=null,lastTap=0;
   const apply=()=>{ im.style.transform=`translate(-50%,-50%) translate(${tx}px,${ty}px) scale(${sc})`; };
   const clamp=()=>{ sc=Math.min(8,Math.max(1,sc)); if(sc===1){tx=ty=0;} };
-  const close=()=>{ lb.classList.remove('on'); im.removeAttribute('src'); pts.clear(); };
-  window.openZoom=src=>{ im.src=src; sc=1;tx=ty=0; apply(); lb.classList.add('on'); };
+  const close=()=>{ if(lb.open) lb.close(); im.removeAttribute('src'); pts.clear(); };
+  window.openZoom=src=>{ im.src=src; sc=1;tx=ty=0; apply(); lb.showModal(); };
   $('lbX').onclick=close;
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&lb.classList.contains('on')){e.preventDefault();e.stopPropagation();close();} },true);
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&lb.open){e.preventDefault();e.stopPropagation();close();} },true);
   lb.addEventListener('wheel',e=>{ e.preventDefault(); sc*=e.deltaY<0?1.15:1/1.15; clamp(); apply(); },{passive:false});
   lb.addEventListener('pointerdown',e=>{
     if(e.target.closest('.x'))return;
