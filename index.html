@@ -115,6 +115,7 @@ details.opt .row{margin-top:10px}
 <dialog id="dlg"><form class="form" method="dialog" id="f">
   <h2 id="fTitle">Nueva comida</h2>
   <div class="photo" id="photoBox"></div>
+  <p class="help" id="photoNote" hidden></p>
   <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
   <input type="file" id="fileGal" accept="image/*" hidden>
   <label>¿Qué comiste? <input id="title" placeholder="Ej: Milanesa de pollo con ensalada" autocomplete="off"></label>
@@ -302,6 +303,7 @@ function openForm(m){
   $('glu').value = m?.glu??''; $('carb').value = m?.carb??''; $('ins').value = m?.ins??''; $('note').value = m?.note||'';
   $('optBox').open = !!(m && (m.glu!=null||m.carb!=null||m.ins!=null||m.note));
   $('del').hidden = !m;
+  $('photoNote').hidden = true;
   drawPhoto();
   $('dlg').showModal();
 }
@@ -310,6 +312,7 @@ $('time').oninput = () => { if(!editing) $('type').value = suggestType($('time')
 $('cancel').onclick = () => $('dlg').close();
 for(const id of ['fileCam','fileGal']) $(id).onchange = async e => {
   const f = e.target.files[0]; e.target.value=''; if(!f) return;
+  if(id==='fileGal') await useGalleryDate(f);
   photoData = await shrink(f); drawPhoto();
 };
 function shrink(file,max=1100,q=.8){
@@ -324,6 +327,48 @@ function shrink(file,max=1100,q=.8){
     };
     img.onerror = rej; img.src = url;
   });
+}
+
+/* ---------- Fecha/hora de la foto (EXIF) ---------- */
+async function photoDate(file){
+  try{
+    const v=new DataView(await file.slice(0,262144).arrayBuffer());
+    if(v.getUint16(0)===0xFFD8){
+      let o=2;
+      while(o+10<v.byteLength){
+        const m=v.getUint16(o);
+        if((m&0xFF00)!==0xFF00) break;
+        if(m===0xFFE1 && v.getUint32(o+4)===0x45786966){
+          const t=o+10, le=v.getUint16(t)===0x4949;
+          const g16=p=>v.getUint16(p,le), g32=p=>v.getUint32(p,le);
+          const ifd=off=>{ const r={}, n=g16(t+off);
+            for(let i=0;i<n;i++){ const e=t+off+2+i*12; r[g16(e)]={cnt:g32(e+4),val:g32(e+8),at:e+8}; } return r; };
+          const str=e=>{ const p=e.cnt>4?t+e.val:e.at; let x=''; for(let i=0;i<e.cnt-1;i++) x+=String.fromCharCode(v.getUint8(p+i)); return x; };
+          const i0=ifd(g32(t+4));
+          let raw=null;
+          if(i0[0x8769]){ const ex=ifd(i0[0x8769].val); const e=ex[0x9003]||ex[0x9004]; if(e) raw=str(e); }
+          if(!raw && i0[0x0132]) raw=str(i0[0x0132]);
+          const mt=raw&&raw.match(/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/);
+          if(mt && mt[1]!=='0000') return {date:`${mt[1]}-${mt[2]}-${mt[3]}`, time:`${mt[4]}:${mt[5]}`};
+          break;
+        }
+        o+=2+v.getUint16(o+2);
+      }
+    }
+  }catch{}
+  // sin EXIF: usar la fecha del archivo solo si no es "recién ahora"
+  if(file.lastModified && Date.now()-file.lastModified>5*60000){
+    const d=new Date(file.lastModified); return {date:iso(d), time:`${pad(d.getHours())}:${pad(d.getMinutes())}`};
+  }
+  return null;
+}
+async function useGalleryDate(f){
+  if(editing) return;
+  const d=await photoDate(f), n=$('photoNote');
+  if(d){
+    $('date').value=d.date; $('time').value=d.time; $('type').value=suggestType(d.time);
+    n.textContent=`📅 Día y hora tomados de la foto (${fromIso(d.date).toLocaleDateString('es-AR')} ${d.time}). Podés cambiarlos.`; n.hidden=false;
+  } else { n.textContent='No encontré la fecha de la foto: revisá el día y la hora.'; n.hidden=false; }
 }
 const num = v => v===''||v==null ? null : Number(v);
 $('f').onsubmit = async e => {
