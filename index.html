@@ -19,14 +19,16 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:90px}
 header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px}
 .bar{max-width:720px;margin:auto;display:flex;align-items:center;gap:8px}
-.bar h1{font-size:18px;margin:0;flex:1}
+.bar h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@media(max-width:480px){.wide{display:none}}
 button,.btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer}
 button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
 button.danger{color:var(--warn)}
 button:disabled{opacity:.5}
 main{max-width:720px;margin:auto;padding:12px 16px}
 .nav{display:flex;align-items:center;gap:8px;margin:6px 0 14px}
-.nav .d{flex:1;text-align:center;font-weight:600;text-transform:capitalize}
+.nav .d{flex:1;text-align:center;font-weight:600}
+.nav .d::first-letter{text-transform:uppercase}
 .nav input[type=date]{position:absolute;opacity:0;pointer-events:none}
 .meal{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
 .meal img{display:block;width:100%;max-height:420px;object-fit:cover}
@@ -42,7 +44,7 @@ main{max-width:720px;margin:auto;padding:12px 16px}
 .acts button{padding:4px 10px;font-size:13px}
 .empty{text-align:center;color:var(--mute);padding:50px 10px}
 .fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;font-size:30px;line-height:1;padding:0;box-shadow:0 4px 14px #0004}
-dialog{border:none;border-radius:18px;padding:0;width:min(560px,100%);max-height:94vh;background:var(--card);color:var(--ink)}
+dialog{border:none;border-radius:18px;padding:0;width:min(560px,100%);max-height:94vh;max-height:94dvh;background:var(--card);color:var(--ink)}
 dialog::backdrop{background:#0008}
 .form{padding:16px;display:grid;gap:12px}
 .form h2{margin:0;font-size:18px}
@@ -103,7 +105,8 @@ details.opt .row{margin-top:10px}
   #print h1{font-size:18pt;margin:0 0 2pt}
   #print .sub{color:#555;margin-bottom:12pt}
   #print .day{break-inside:auto;margin-bottom:14pt}
-  #print .day h2{font-size:14pt;border-bottom:1.5px solid #000;padding-bottom:3pt;margin:0 0 8pt;text-transform:capitalize}
+  #print .day h2{font-size:14pt;border-bottom:1.5px solid #000;padding-bottom:3pt;margin:0 0 8pt}
+  #print .day h2::first-letter{text-transform:uppercase}
   #print .pm{display:flex;gap:10pt;margin-bottom:10pt;break-inside:avoid}
   #print .pm img{width:150pt;height:150pt;object-fit:cover;border-radius:6pt;flex:none}
   #print .pm .t{font-weight:700}
@@ -115,7 +118,7 @@ details.opt .row{margin-top:10px}
 </head>
 <body>
 <header><div class="bar">
-  <h1>🍽️ Diario de comidas</h1>
+  <h1>🍽️ Diario<span class="wide"> de comidas</span></h1>
   <button id="btnRem" title="Recordatorios">🔔</button>
   <button id="btnExport">Exportar</button>
   <button id="btnData" title="Copia de seguridad">⚙️</button>
@@ -205,8 +208,9 @@ details.opt .row{margin-top:10px}
 <!-- Datos -->
 <dialog id="dlgD"><div class="form">
   <h2>Copia de seguridad</h2>
-  <p class="help">Todo se guarda solo en este navegador/dispositivo. Descargá una copia de vez en cuando, y si cambiás de celu o compu, importala.</p>
-  <button id="bExp">⬇️ Descargar copia (.json)</button>
+  <p class="help">Todo se guarda solo en este navegador/dispositivo. Hacé una copia cada tanto: se abre la hoja de compartir y la guardás en <b>Archivos → iCloud Drive</b>. Si cambiás de celu o compu, la importás acá.</p>
+  <p class="help" id="lastBk"></p>
+  <button id="bExp" class="pri">💾 Guardar copia (Archivos / iCloud)</button>
   <button id="bImp">⬆️ Importar copia</button>
   <input type="file" id="fImp" accept="application/json" hidden>
   <div class="foot"><button type="button" id="dClose">Cerrar</button></div>
@@ -469,13 +473,31 @@ $('xGo').onclick = async () => {
 };
 
 /* ---------- Backup ---------- */
-$('btnData').onclick = () => $('dlgD').showModal();
+$('btnData').onclick = () => { $('lastBk').textContent=bkText(); $('dlgD').showModal(); };
 $('dClose').onclick = () => $('dlgD').close();
-$('bExp').onclick = async () => {
-  const blob=new Blob([JSON.stringify({v:1,meals:await allMeals()})],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download=`diario-comidas-${iso(new Date())}.json`; a.click();
-};
+const lastBk = () => { try{ return +localStorage.getItem('fd-lastbk')||0; }catch{ return 0; } };
+const bkAgo = () => { const l=lastBk(); if(!l) return null; return Math.floor((Date.now()-l)/864e5); };
+function bkText(){ const d=bkAgo(); return d===null?'Todavía no hiciste ninguna copia.':d===0?'Última copia: hoy ✅':`Última copia: hace ${d} día${d===1?'':'s'}.`; }
+async function doBackup(){
+  const meals=await allMeals();
+  const file=new File([JSON.stringify({v:1,meals})],`diario-comidas-${iso(new Date())}.json`,{type:'application/json'});
+  const download=()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; a.click(); };
+  try{
+    if(matchMedia('(pointer:coarse)').matches && navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:'Copia del diario de comidas'}); }
+      catch(e){ if(e&&e.name==='AbortError') return; download(); }
+    } else download();
+  }catch{ alert('No se pudo guardar la copia.'); return; }
+  try{ localStorage.setItem('fd-lastbk',String(Date.now())); }catch{}
+  $('lastBk').textContent=bkText();
+}
+$('bExp').onclick = doBackup;
+async function checkBackup(){
+  const n=(await allMeals()).length; if(!n) return;
+  const d=bkAgo();
+  if(d===null){ if(n>=3) showToast('Todavía no hiciste ninguna copia de seguridad 💾','Hacer copia',doBackup); }
+  else if(d>=7) showToast(`Hace ${d} días que no hacés una copia de seguridad 💾`,'Hacer copia',doBackup);
+}
 $('bImp').onclick = () => $('fImp').click();
 $('fImp').onchange = async e => {
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
@@ -571,9 +593,10 @@ const getRem=()=>{try{return JSON.parse(localStorage.getItem('fd-rem'))||structu
 const setRem=r=>localStorage.setItem('fd-rem',JSON.stringify(r));
 const getFired=()=>{try{return JSON.parse(localStorage.getItem('fd-fired'))||{};}catch{return {};}};
 const mins=t=>+t.slice(0,2)*60+ +t.slice(3,5);
-function showToast(txt){ $('toastTxt').textContent=txt; $('toast').classList.add('on'); }
+let toastAct=()=>{};
+function showToast(txt,label='Anotar',act){ $('toastTxt').textContent=txt; $('toastGo').textContent=label; toastAct=act||(()=>{ cur=iso(new Date()); render(); openForm(); }); $('toast').classList.add('on'); }
 $('toastX').onclick=()=>$('toast').classList.remove('on');
-$('toastGo').onclick=()=>{ $('toast').classList.remove('on'); cur=iso(new Date()); render(); openForm(); };
+$('toastGo').onclick=()=>{ $('toast').classList.remove('on'); toastAct(); };
 async function checkReminders(){
   const r=getRem(); if(!r.on||!db) return;
   const today=iso(new Date()), nowM=mins(nowTime()), f=getFired();
@@ -624,7 +647,7 @@ $('rIcs').onclick=()=>{
 };
 
 /* ---------- Init ---------- */
-openDB().then(d=>{ db=d; render(); navigator.storage?.persist?.(); checkReminders(); });
+openDB().then(d=>{ db=d; render(); navigator.storage?.persist?.(); checkReminders(); checkBackup(); });
 </script>
 </body>
 </html>
