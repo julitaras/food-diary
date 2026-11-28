@@ -359,21 +359,31 @@ $('calToday').onclick=()=>{ cur=iso(new Date()); $('dlgC').close(); render(); };
 $('calClose').onclick=()=>$('dlgC').close();
 
 /* ---------- Formulario ---------- */
-let editing=null, photoData=null;
+let editing=null, photoData=null, origFile=null;
 
 function suggestType(t){
   const h = +t.slice(0,2);
   return h<10?'Desayuno': h<12?'Colación': h<15?'Almuerzo': h<18?'Merienda': h<23?'Cena':'Otro';
 }
+async function saveToGallery(){
+  if(!origFile) return;
+  const d=new Date(), name=`comida-${iso(d)}-${pad(d.getHours())}${pad(d.getMinutes())}.jpg`;
+  const file=new File([origFile],name,{type:origFile.type||'image/jpeg'});
+  const download=()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=name; a.click(); };
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file]}); }catch(e){ if(!e||e.name!=='AbortError') download(); }
+  } else download();
+}
 function drawPhoto(){
   $('photoBox').innerHTML = photoData
-    ? `<img src="${photoData}" alt=""><div class="pb" style="position:absolute;right:0;bottom:0"><button type="button" id="pCrop">✂️ Recortar</button><button type="button" id="pRm">Quitar foto</button></div>`
+    ? `<img src="${photoData}" alt=""><div class="pb" style="width:100%;background:var(--card)"><button type="button" id="pCrop">✂️ Recortar</button>${origFile?'<button type="button" id="pSave">💾 Guardar en Fotos</button>':''}<button type="button" id="pRm">Quitar foto</button></div>`
     : `<div class="pb"><button type="button" id="pCam">📷 Sacar foto</button><button type="button" id="pGal">🖼️ Elegir de galería</button></div>`;
-  if(photoData){ $('pRm').onclick = () => { photoData=null; drawPhoto(); }; $('pCrop').onclick = openCrop; }
+  if(photoData){ $('pRm').onclick = () => { photoData=null; origFile=null; drawPhoto(); }; $('pCrop').onclick = openCrop;
+    if($('pSave')) $('pSave').onclick = saveToGallery; }
   else { $('pCam').onclick=()=>$('fileCam').click(); $('pGal').onclick=()=>$('fileGal').click(); }
 }
 function openForm(m){
-  editing = m||null; photoData = m?.photo||null;
+  editing = m||null; photoData = m?.photo||null; origFile = null;
   $('fTitle').textContent = m?'Editar comida':'Nueva comida';
   const t = m?.time || nowTime();
   $('date').value = m?.date || cur;
@@ -392,6 +402,7 @@ $('time').oninput = () => { if(!editing) $('type').value = suggestType($('time')
 $('cancel').onclick = () => $('dlg').close();
 for(const id of ['fileCam','fileGal']) $(id).onchange = async e => {
   const f = e.target.files[0]; e.target.value=''; if(!f) return;
+  origFile = id==='fileCam' ? f : null;
   if(id==='fileGal') await useGalleryDate(f);
   photoData = await shrink(f); drawPhoto();
 };
