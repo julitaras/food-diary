@@ -27,9 +27,23 @@ button.danger{color:var(--warn)}
 button:disabled{opacity:.5}
 main{max-width:720px;margin:auto;padding:12px 16px}
 .nav{display:flex;align-items:center;gap:8px;margin:6px 0 14px}
-.nav .d{flex:1;text-align:center;font-weight:600}
+.nav>button{flex:none;width:46px;height:46px;padding:0;font-size:20px}
+.nav .mid{flex:1;min-width:0;height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer}
+.nav .d{font-weight:600;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav .d::first-letter{text-transform:uppercase}
-.nav input[type=date]{position:absolute;opacity:0;pointer-events:none}
+.nav .rel{font-size:12px;color:var(--mute);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:none;border:none;padding:0;cursor:pointer}
+.nav .rel.go{color:var(--acc);font-weight:600}
+.calh{display:flex;align-items:center;gap:8px}
+.calh b{flex:1;text-align:center}
+.calh b::first-letter{text-transform:uppercase}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .wd{text-align:center;font-size:12px;color:var(--mute);padding:4px 0}
+.cal button{position:relative;aspect-ratio:1;padding:0;border-radius:10px;font-size:15px}
+.cal button.has{background:var(--acc2)}
+.cal button.t{border-color:var(--acc);font-weight:700}
+.cal button.s{background:var(--acc);color:#fff;border-color:var(--acc)}
+.cal .dot{position:absolute;right:4px;bottom:2px;font-size:10px;line-height:1;color:var(--acc);font-weight:700}
+.cal button.s .dot{color:#fff}
 .meal{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
 .meal img{display:block;width:100%;max-height:420px;object-fit:cover}
 .mb{padding:12px 14px}
@@ -49,7 +63,7 @@ dialog::backdrop{background:#0008}
 .form{padding:16px;display:grid;gap:12px}
 .form h2{margin:0;font-size:18px}
 label{display:grid;gap:4px;font-size:13px;color:var(--mute)}
-input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
+input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
 textarea{min-height:84px;resize:vertical}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .photo{border:2px dashed var(--line);border-radius:12px;min-height:110px;display:grid;place-items:center;overflow:hidden;position:relative;color:var(--mute);text-align:center}
@@ -126,11 +140,10 @@ details.opt .row{margin-top:10px}
 
 <main>
   <div class="nav">
-    <button id="prev">‹</button>
-    <div class="d" id="dayLabel"></div>
-    <button id="next">›</button>
-    <button id="today">Hoy</button>
-    <input type="date" id="jump">
+    <button id="prev" aria-label="Día anterior">‹</button>
+    <div class="mid" id="mid"><div class="d" id="dayLabel"></div><button class="rel" id="today"></button></div>
+    <button id="next" aria-label="Día siguiente">›</button>
+    <button id="calBtn" aria-label="Ver el mes">📅</button>
   </div>
   <div id="list"></div>
 </main>
@@ -177,6 +190,14 @@ details.opt .row{margin-top:10px}
     <button type="submit" class="pri" id="save">Guardar</button>
   </div>
 </form></dialog>
+
+<!-- Calendario -->
+<dialog id="dlgC"><div class="form">
+  <div class="calh"><button type="button" id="calPrev" aria-label="Mes anterior">‹</button><b id="calTitle"></b><button type="button" id="calNext" aria-label="Mes siguiente">›</button></div>
+  <div class="cal" id="calGrid"></div>
+  <p class="help">Los días con comidas están marcados con el número de comidas.</p>
+  <div class="foot"><button type="button" id="calToday">Ir a hoy</button><span style="flex:1"></span><button type="button" id="calClose">Cerrar</button></div>
+</div></dialog>
 
 <!-- Exportar -->
 <dialog id="dlgX"><div class="form">
@@ -274,7 +295,11 @@ const mealsBetween = async (a,b) =>
 let cur = iso(new Date());
 
 async function render(){
-  $('dayLabel').textContent = cur===iso(new Date()) ? 'Hoy · '+fmtDay(cur) : fmtDay(cur);
+  const todayIso=iso(new Date()), diff=Math.round((fromIso(cur)-fromIso(todayIso))/864e5);
+  $('dayLabel').textContent = fmtDay(cur);
+  const rel=diff===0?'Hoy':diff===-1?'Ayer':diff===1?'Mañana':diff<0?`Hace ${-diff} días`:`En ${diff} días`;
+  $('today').textContent = diff===0 ? rel : `${rel} · volver a hoy`;
+  $('today').classList.toggle('go', diff!==0);
   const ms = await mealsBetween(cur,cur);
   $('list').innerHTML = ms.length ? ms.map(cardHTML).join('') :
     `<div class="empty">Todavía no registraste nada este día.<br>Tocá <b>+</b> para agregar tu primera comida.</div>`;
@@ -305,9 +330,32 @@ $('list').onclick = async e => {
 };
 $('prev').onclick = () => { cur=addDays(cur,-1); render(); };
 $('next').onclick = () => { cur=addDays(cur,1); render(); };
-$('today').onclick = () => { cur=iso(new Date()); render(); };
-$('dayLabel').onclick = () => { $('jump').value=cur; try{$('jump').showPicker()}catch{$('jump').focus()} };
-$('jump').onchange = () => { if($('jump').value){cur=$('jump').value; render();} };
+$('today').onclick = e => { e.stopPropagation(); if(cur!==iso(new Date())){ cur=iso(new Date()); render(); } else openCal(); };
+$('mid').onclick = e => { if(e.target.id!=='today') openCal(); };
+$('calBtn').onclick = () => openCal();
+
+/* ---------- Calendario del mes ---------- */
+let calM;
+async function openCal(){ const d=fromIso(cur); calM={y:d.getFullYear(),m:d.getMonth()}; await drawCal(); $('dlgC').showModal(); }
+async function drawCal(){
+  const first=new Date(calM.y,calM.m,1), last=new Date(calM.y,calM.m+1,0);
+  const ms=await mealsBetween(iso(first),iso(last)), cnt={};
+  ms.forEach(m=>cnt[m.date]=(cnt[m.date]||0)+1);
+  $('calTitle').textContent=first.toLocaleDateString('es-AR',{month:'long',year:'numeric'});
+  const todayIso=iso(new Date()), lead=(first.getDay()+6)%7;
+  let h=['L','M','M','J','V','S','D'].map(n=>`<div class="wd">${n}</div>`).join('');
+  for(let i=0;i<lead;i++) h+='<i></i>';
+  for(let d=1;d<=last.getDate();d++){
+    const k=iso(new Date(calM.y,calM.m,d));
+    h+=`<button data-d="${k}" class="${cnt[k]?'has ':''}${k===todayIso?'t ':''}${k===cur?'s':''}">${d}${cnt[k]?`<span class="dot">${cnt[k]}</span>`:''}</button>`;
+  }
+  $('calGrid').innerHTML=h;
+}
+$('calPrev').onclick=()=>{ calM.m--; if(calM.m<0){calM.m=11;calM.y--;} drawCal(); };
+$('calNext').onclick=()=>{ calM.m++; if(calM.m>11){calM.m=0;calM.y++;} drawCal(); };
+$('calGrid').onclick=e=>{ const d=e.target.closest('[data-d]')?.dataset.d; if(!d) return; cur=d; $('dlgC').close(); render(); };
+$('calToday').onclick=()=>{ cur=iso(new Date()); $('dlgC').close(); render(); };
+$('calClose').onclick=()=>$('dlgC').close();
 
 /* ---------- Formulario ---------- */
 let editing=null, photoData=null;
